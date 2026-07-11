@@ -2,6 +2,7 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import yt_dlp
 import os
+import re  # أضفنا مكتبة التعابير النمطية
 from flask import Flask
 from threading import Thread
 
@@ -38,7 +39,6 @@ def generate_markup(url):
     markup.add(btn_vid_high, btn_vid_low, btn_audio)
     return markup
 
-# إعدادات التخطي لخداع يوتيوب (هذا هو التحديث الأساسي)
 base_ydl_opts = {
     'quiet': True,
     'noplaylist': True,
@@ -57,24 +57,35 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: message.text and 'http' in message.text)
 def handle_link(message):
-    url = message.text
+    raw_text = message.text
     chat_id = message.chat.id
+    
+    # ----------------------------------------------------
+    # التحديث الهندسي: استخراج الرابط النظيف وتجاهل الأقواس
+    # ----------------------------------------------------
+    urls = re.findall(r'(https?://[^\s]+)', raw_text)
+    if not urls:
+        bot.send_message(chat_id, "❌ لم أتمكن من العثور على رابط صالح في رسالتك.")
+        return
+        
+    # أخذ أول رابط موجود وتنظيفه من أي أقواس زائدة التصقت به
+    clean_url = urls[0].strip("[]()") 
+    
     msg = bot.send_message(chat_id, "⏳ Analyzing link... / جاري تحليل الرابط...")
     
     try:
         ydl_opts = base_ydl_opts.copy()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(clean_url, download=False)
             title = info.get('title', 'Unknown Video')
         
         bot.edit_message_text(
             f"✅ **Video:** `{title}`\n\nChoose format / اختر الصيغة:",
             chat_id=chat_id, message_id=msg.message_id,
-            reply_markup=generate_markup(url),
+            reply_markup=generate_markup(clean_url),
             parse_mode="Markdown"
         )
     except Exception as e:
-        # قمنا بتغيير رسالة الخطأ لتطبع لنا المشكلة التقنية بالضبط إن وجدت
         error_msg = str(e).split('\n')[0][:70]
         bot.edit_message_text(f"❌ خطأ من المصدر:\n`{error_msg}...`", chat_id, msg.message_id, parse_mode="Markdown")
 
