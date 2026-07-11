@@ -40,15 +40,14 @@ def keep_alive():
 user_urls = {}
 
 # ==========================================
-# إعدادات يوتيوب + التخطي الجغرافي وتخطي البصمة
+# إعدادات يوتيوب (النسخة النظيفة بعد إضافة البصمة)
 # ==========================================
 base_ydl_opts = {
     'quiet': True,
     'noplaylist': True,
     'geo_bypass': True,
-    'geo_bypass_country': 'US',  # إضافة جديدة لتجاوز حظر الفيديوهات الرياضية
-    'extractor_args': {'youtube': ['client=android,ios']},
-    'cookiefile': 'cookies.txt'  
+    # حذفنا سطر الخداع القديم لأنه يتعارض مع البصمة
+    'cookiefile': 'cookies.txt'  # البصمة تكفي تماماً وتلغي الحاجة لأي خدع أخرى
 }
 
 # ==========================================
@@ -119,13 +118,13 @@ def callback_query(call):
     ydl_opts = base_ydl_opts.copy()
     ydl_opts['outtmpl'] = f'downloads/{chat_id}_%(id)s.%(ext)s'
 
-    # التعديل الجديد لضمان عدم انهيار السيرفر المجاني
+    # صيغ التحميل المرنة والآمنة التي لا تنهار
     if action == 'audio':
         ydl_opts.update({'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192',}]})
     elif action == 'low':
-        ydl_opts.update({'format': 'best[height<=480]/best'})
+        ydl_opts.update({'format': 'best[height<=480]/b'})
     elif action == 'high':
-        ydl_opts.update({'format': 'best'})
+        ydl_opts.update({'format': 'best/b'})
 
     downloaded_file = None
     try:
