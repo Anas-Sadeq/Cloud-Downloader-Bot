@@ -2,15 +2,35 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import yt_dlp
 import os
+from flask import Flask
+from threading import Thread
 
 # ضع التوكن الخاص بك هنا
 BOT_TOKEN = "8466380764:AAHGrGBkp7iGBFdMYBc-f93tnvEw6H34pho"
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# ==========================================
+# إعداد سيرفر فلاسك (الخداع الهندسي للمنصة)
+# ==========================================
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return "Bilingual Bot is Alive and Running!"
+
+def run():
+    app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 8080)))
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# ==========================================
+# كود البوت الأساسي
+# ==========================================
 def generate_markup(url):
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
-    # أزرار ثنائية اللغة
     btn_audio = InlineKeyboardButton("🎵 Audio / صوت (MP3)", callback_data=f"audio|{url}")
     btn_vid_low = InlineKeyboardButton("🎥 Medium Quality / جودة متوسطة", callback_data=f"low|{url}")
     btn_vid_high = InlineKeyboardButton("🎬 High Quality / جودة عالية", callback_data=f"high|{url}")
@@ -79,7 +99,6 @@ def callback_query(call):
                 downloaded_file = downloaded_file.rsplit('.', 1)[0] + '.mp3'
 
         bot.edit_message_text("📤 Uploading to Telegram... / جاري الإرسال...", chat_id, msg_id)
-        
         caption_text = "✨ Downloaded via / تم التحميل بواسطة:\n👨‍💻 Dev: Anas Sadeq"
         
         with open(downloaded_file, 'rb') as file:
@@ -95,5 +114,9 @@ def callback_query(call):
         if downloaded_file and os.path.exists(downloaded_file):
             os.remove(downloaded_file)
 
-print("Bilingual Bot is running securely...")
+# ==========================================
+# تشغيل الخوادم معاً
+# ==========================================
+keep_alive()
+print("Bilingual Bot is running securely on Render...")
 bot.infinity_polling()
