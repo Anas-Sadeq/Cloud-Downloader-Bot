@@ -40,14 +40,15 @@ def keep_alive():
 user_urls = {}
 
 # ==========================================
-# إعدادات يوتيوب + التخطي (Cookies)
+# إعدادات يوتيوب + التخطي الجغرافي وتخطي البصمة
 # ==========================================
 base_ydl_opts = {
     'quiet': True,
     'noplaylist': True,
     'geo_bypass': True,
+    'geo_bypass_country': 'US',  # إضافة جديدة لتجاوز حظر الفيديوهات الرياضية
     'extractor_args': {'youtube': ['client=android,ios']},
-    'cookiefile': 'cookies.txt'  # <-- السطر السحري لتخطي حماية يوتيوب
+    'cookiefile': 'cookies.txt'  
 }
 
 # ==========================================
@@ -118,12 +119,13 @@ def callback_query(call):
     ydl_opts = base_ydl_opts.copy()
     ydl_opts['outtmpl'] = f'downloads/{chat_id}_%(id)s.%(ext)s'
 
+    # التعديل الجديد لضمان عدم انهيار السيرفر المجاني
     if action == 'audio':
         ydl_opts.update({'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192',}]})
     elif action == 'low':
-        ydl_opts.update({'format': 'best[height<=480]/worst'})
+        ydl_opts.update({'format': 'best[height<=480]/best'})
     elif action == 'high':
-        ydl_opts.update({'format': 'best/bestvideo+bestaudio'})
+        ydl_opts.update({'format': 'best'})
 
     downloaded_file = None
     try:
@@ -136,7 +138,6 @@ def callback_query(call):
         bot.edit_message_text("📤 Uploading to Telegram... / جاري الإرسال...", chat_id, msg_id)
         caption_text = "✨ Downloaded via / تم التحميل بواسطة:\n👨‍💻 Dev: Anas Sadeq"
         
-        # نظام المحاولات المتكررة (العنيد)
         max_retries = 3
         for attempt in range(max_retries):
             try:
