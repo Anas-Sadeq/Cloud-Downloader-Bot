@@ -18,7 +18,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index(): 
-    return "Bilingual Bot is Alive and Running (Cobalt API)!"
+    return "Bot is running 24/7!"
 
 def run(): 
     app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 8080)))
@@ -30,47 +30,39 @@ Thread(target=run).start()
 # ==========================================
 @bot.message_handler(commands=['start'])
 def start(message):
-    text = (
-        "**Welcome! / أهلاً بك!** 🚀\n\n"
-        "🇬🇧 Send me any video link (YouTube, TikTok, Instagram...) and I will download it for you.\n"
-        "🇸🇦 أرسل لي أي رابط فيديو وسأقوم بتحميله فوراً عبر خدمة Cobalt."
-    )
-    bot.reply_to(message, text, parse_mode="Markdown")
+    bot.reply_to(message, "أهلاً بك! أرسل رابط الفيديو وسأقوم بتحميله فوراً.")
 
 @bot.message_handler(func=lambda message: message.text and 'http' in message.text)
 def download(message):
     url = message.text.split()[0]
-    msg = bot.send_message(message.chat.id, "⏳ جاري المعالجة من خوادم Cobalt...")
+    msg = bot.send_message(message.chat.id, "⏳ جاري المعالجة...")
     
     try:
-        # إرسال طلب لخدمة Cobalt
+        # الاتصال بالمسار الرئيسي المحدث لخدمة Cobalt
         payload = {"url": url}
         headers = {
             "Accept": "application/json", 
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            "Content-Type": "application/json"
         }
-        res = requests.post("https://api.cobalt.tools/api/json", json=payload, headers=headers)
+        
+        res = requests.post("https://api.cobalt.tools/", json=payload, headers=headers)
         response = res.json()
         
-        # التحقق من وجود رابط الفيديو في الرد
-        if "url" in response:
+        # الإصدار الجديد يرجع الرابط المباشر
+        video_url = response.get("url")
+        
+        if video_url:
             bot.edit_message_text("⬇️ جاري التحميل للإرسال...", message.chat.id, msg.message_id)
             bot.send_video(
                 message.chat.id, 
-                response["url"], 
+                video_url, 
                 caption="✨ تم التحميل بواسطة:\n👨‍💻 Dev: Anas Sadeq"
             )
             bot.delete_message(message.chat.id, msg.message_id)
         else:
-            # هنا التعديل الهندسي: إظهار الخطأ الحقيقي القادم من الخادم
-            error_text = response.get("text", str(response))
-            bot.edit_message_text(
-                f"❌ خادم Cobalt يقول:\n`{error_text}`", 
-                message.chat.id, 
-                msg.message_id, 
-                parse_mode="Markdown"
-            )
+            # معالجة الأخطاء
+            error_text = response.get("text", "تعذر جلب الرابط من المصدر.")
+            bot.edit_message_text(f"❌ خطأ:\n`{error_text}`", message.chat.id, msg.message_id)
             
     except Exception as e:
         bot.edit_message_text(f"⚠️ خطأ الاتصال:\n`{str(e)}`", message.chat.id, msg.message_id)
