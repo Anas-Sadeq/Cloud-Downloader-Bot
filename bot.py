@@ -11,7 +11,7 @@ BOT_TOKEN = "8466380764:AAHH3k3U4vEepn9C20Rz1jwfCyFumv9jyzQ"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ==========================================
-# إعداد سيرفر فلاسك لمنع السبات
+# إعداد سيرفر فلاسك
 # ==========================================
 app = Flask(__name__)
 
@@ -27,7 +27,7 @@ def keep_alive():
     t.start()
 
 # ==========================================
-# ذاكرة البوت (لحل مشكلة الروابط الطويلة)
+# ذاكرة البوت
 # ==========================================
 user_urls = {}
 
@@ -37,7 +37,6 @@ user_urls = {}
 def generate_markup():
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
-    # أزلنا الرابط من الأزرار لتجنب خطأ 400 في تيليجرام
     btn_audio = InlineKeyboardButton("🎵 Audio / صوت (MP3)", callback_data="audio")
     btn_vid_low = InlineKeyboardButton("🎥 Medium Quality / جودة متوسطة", callback_data="low")
     btn_vid_high = InlineKeyboardButton("🎬 High Quality / جودة عالية", callback_data="high")
@@ -65,14 +64,12 @@ def send_welcome(message):
 def handle_link(message):
     chat_id = message.chat.id
     
-    # استخراج الرابط النظيف بدقة متناهية متجاهلاً الأقواس
     match = re.search(r'(https?://[^\s\)\]]+)', message.text)
     if not match:
         bot.send_message(chat_id, "❌ لم أتمكن من العثور على رابط صالح.")
         return
         
     clean_url = match.group(1)
-    # حفظ الرابط في ذاكرة البوت المرتبطة برقم الشات الخاص بك
     user_urls[chat_id] = clean_url
     
     msg = bot.send_message(chat_id, "⏳ Analyzing link... / جاري تحليل الرابط...")
@@ -99,7 +96,6 @@ def callback_query(call):
     msg_id = call.message.message_id
     action = call.data
     
-    # استدعاء الرابط من الذاكرة
     url = user_urls.get(chat_id)
     if not url:
         bot.edit_message_text("❌ انتهت صلاحية الجلسة، أرسل الرابط من جديد.", chat_id, msg_id)
@@ -129,11 +125,12 @@ def callback_query(call):
         bot.edit_message_text("📤 Uploading to Telegram... / جاري الإرسال...", chat_id, msg_id)
         caption_text = "✨ Downloaded via / تم التحميل بواسطة:\n👨‍💻 Dev: Anas Sadeq"
         
+        # التعديل هنا: إضافة timeout=120 لإعطاء السيرفر وقتاً كافياً لرفع الملف إليك
         with open(downloaded_file, 'rb') as file:
             if action == 'audio':
-                bot.send_audio(chat_id, file, caption=caption_text)
+                bot.send_audio(chat_id, file, caption=caption_text, timeout=120)
             else:
-                bot.send_video(chat_id, file, caption=caption_text)
+                bot.send_video(chat_id, file, caption=caption_text, timeout=120)
                 
         bot.delete_message(chat_id, msg_id)
     except Exception as e:
@@ -147,4 +144,4 @@ def callback_query(call):
 # تشغيل الخوادم معاً
 # ==========================================
 keep_alive()
-bot.infinity_polling()
+bot.infinity_polling(timeout=60, long_polling_timeout=60)
