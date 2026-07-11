@@ -6,11 +6,11 @@ from flask import Flask
 from threading import Thread
 
 # ضع التوكن الخاص بك هنا
-BOT_TOKEN = "8466380764:AAFfs_SzDMfhXnw8xp2kVBYwkLC4dxutvds"
+BOT_TOKEN = "8466380764:AAHGrGBkp7iGBFdMYBc-f93tnvEw6H34pho"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ==========================================
-# إعداد سيرفر فلاسك (الخداع الهندسي للمنصة)
+# إعداد سيرفر فلاسك 
 # ==========================================
 app = Flask(__name__)
 
@@ -38,6 +38,14 @@ def generate_markup(url):
     markup.add(btn_vid_high, btn_vid_low, btn_audio)
     return markup
 
+# إعدادات التخطي لخداع يوتيوب (هذا هو التحديث الأساسي)
+base_ydl_opts = {
+    'quiet': True,
+    'noplaylist': True,
+    'geo_bypass': True,
+    'extractor_args': {'youtube': ['client=android,ios']}
+}
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     text = (
@@ -54,7 +62,7 @@ def handle_link(message):
     msg = bot.send_message(chat_id, "⏳ Analyzing link... / جاري تحليل الرابط...")
     
     try:
-        ydl_opts = {'quiet': True, 'noplaylist': True}
+        ydl_opts = base_ydl_opts.copy()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             title = info.get('title', 'Unknown Video')
@@ -66,7 +74,9 @@ def handle_link(message):
             parse_mode="Markdown"
         )
     except Exception as e:
-        bot.edit_message_text("❌ Invalid link or private video. / رابط غير صالح أو فيديو خاص.", chat_id, msg.message_id)
+        # قمنا بتغيير رسالة الخطأ لتطبع لنا المشكلة التقنية بالضبط إن وجدت
+        error_msg = str(e).split('\n')[0][:70]
+        bot.edit_message_text(f"❌ خطأ من المصدر:\n`{error_msg}...`", chat_id, msg.message_id, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
@@ -77,11 +87,8 @@ def callback_query(call):
     bot.edit_message_text("⬇️ Downloading... Please wait / جاري التحميل... يرجى الانتظار", chat_id, msg_id)
     os.makedirs('downloads', exist_ok=True)
     
-    ydl_opts = {
-        'outtmpl': f'downloads/{chat_id}_%(id)s.%(ext)s',
-        'noplaylist': True,
-        'quiet': True,
-    }
+    ydl_opts = base_ydl_opts.copy()
+    ydl_opts['outtmpl'] = f'downloads/{chat_id}_%(id)s.%(ext)s'
 
     if action == 'audio':
         ydl_opts.update({'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192',}]})
@@ -109,7 +116,8 @@ def callback_query(call):
                 
         bot.delete_message(chat_id, msg_id)
     except Exception as e:
-        bot.edit_message_text("⚠️ Error: File too large or protected / خطأ: الملف كبير جداً أو محمي", chat_id, msg_id)
+        error_msg = str(e).split('\n')[0][:70]
+        bot.edit_message_text(f"⚠️ خطأ أثناء التحميل:\n`{error_msg}...`", chat_id, msg_id, parse_mode="Markdown")
     finally:
         if downloaded_file and os.path.exists(downloaded_file):
             os.remove(downloaded_file)
@@ -118,5 +126,4 @@ def callback_query(call):
 # تشغيل الخوادم معاً
 # ==========================================
 keep_alive()
-print("Bilingual Bot is running securely on Render...")
 bot.infinity_polling()
