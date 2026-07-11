@@ -11,7 +11,7 @@ BOT_TOKEN = "8466380764:AAHH3k3U4vEepn9C20Rz1jwfCyFumv9jyzQ"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ==========================================
-# إعداد سيرفر فلاسك
+# إعداد سيرفر فلاسك لمنع السبات
 # ==========================================
 app = Flask(__name__)
 
@@ -27,9 +27,19 @@ def keep_alive():
     t.start()
 
 # ==========================================
-# ذاكرة البوت
+# ذاكرة البوت لحفظ الروابط (لحل مشكلة 64 حرفاً)
 # ==========================================
 user_urls = {}
+
+# ==========================================
+# إعدادات مكتبة التحميل للتخطي والمرونة
+# ==========================================
+base_ydl_opts = {
+    'quiet': True,
+    'noplaylist': True,
+    'geo_bypass': True,
+    'extractor_args': {'youtube': ['client=android,ios']}
+}
 
 # ==========================================
 # كود البوت الأساسي
@@ -44,13 +54,6 @@ def generate_markup():
     markup.add(btn_vid_high, btn_vid_low, btn_audio)
     return markup
 
-base_ydl_opts = {
-    'quiet': True,
-    'noplaylist': True,
-    'geo_bypass': True,
-    'extractor_args': {'youtube': ['client=android,ios']}
-}
-
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     text = (
@@ -64,6 +67,7 @@ def send_welcome(message):
 def handle_link(message):
     chat_id = message.chat.id
     
+    # تنظيف الرابط من أي أقواس أو نصوص زائدة
     match = re.search(r'(https?://[^\s\)\]]+)', message.text)
     if not match:
         bot.send_message(chat_id, "❌ لم أتمكن من العثور على رابط صالح.")
@@ -107,12 +111,13 @@ def callback_query(call):
     ydl_opts = base_ydl_opts.copy()
     ydl_opts['outtmpl'] = f'downloads/{chat_id}_%(id)s.%(ext)s'
 
+    # التعديل النهائي لمرونة الصيغ
     if action == 'audio':
         ydl_opts.update({'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192',}]})
     elif action == 'low':
-        ydl_opts.update({'format': 'bestvideo[height<=480]+bestaudio/best[height<=480]/best[height<=480]'})
+        ydl_opts.update({'format': 'best[height<=480]/worst'})
     elif action == 'high':
-        ydl_opts.update({'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]/best'})
+        ydl_opts.update({'format': 'best/bestvideo+bestaudio'})
 
     downloaded_file = None
     try:
@@ -125,7 +130,7 @@ def callback_query(call):
         bot.edit_message_text("📤 Uploading to Telegram... / جاري الإرسال...", chat_id, msg_id)
         caption_text = "✨ Downloaded via / تم التحميل بواسطة:\n👨‍💻 Dev: Anas Sadeq"
         
-        # التعديل هنا: إضافة timeout=120 لإعطاء السيرفر وقتاً كافياً لرفع الملف إليك
+        # إعطاء مهلة 120 ثانية لرفع الملفات
         with open(downloaded_file, 'rb') as file:
             if action == 'audio':
                 bot.send_audio(chat_id, file, caption=caption_text, timeout=120)
