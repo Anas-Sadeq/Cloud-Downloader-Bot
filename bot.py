@@ -2,7 +2,7 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import yt_dlp
 import os
-import re  # أضفنا مكتبة التعابير النمطية
+import re
 from flask import Flask
 from threading import Thread
 
@@ -11,7 +11,7 @@ BOT_TOKEN = "8466380764:AAFfs_SzDMfhXnw8xp2kVBYwkLC4dxutvds"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ==========================================
-# إعداد سيرفر فلاسك 
+# إعداد سيرفر فلاسك لمنع السبات
 # ==========================================
 app = Flask(__name__)
 
@@ -27,14 +27,20 @@ def keep_alive():
     t.start()
 
 # ==========================================
+# ذاكرة البوت (لحل مشكلة الروابط الطويلة)
+# ==========================================
+user_urls = {}
+
+# ==========================================
 # كود البوت الأساسي
 # ==========================================
-def generate_markup(url):
+def generate_markup():
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
-    btn_audio = InlineKeyboardButton("🎵 Audio / صوت (MP3)", callback_data=f"audio|{url}")
-    btn_vid_low = InlineKeyboardButton("🎥 Medium Quality / جودة متوسطة", callback_data=f"low|{url}")
-    btn_vid_high = InlineKeyboardButton("🎬 High Quality / جودة عالية", callback_data=f"high|{url}")
+    # أزلنا الرابط من الأزرار لتجنب خطأ 400 في تيليجرام
+    btn_audio = InlineKeyboardButton("🎵 Audio / صوت (MP3)", callback_data="audio")
+    btn_vid_low = InlineKeyboardButton("🎥 Medium Quality / جودة متوسطة", callback_data="low")
+    btn_vid_high = InlineKeyboardButton("🎬 High Quality / جودة عالية", callback_data="high")
     
     markup.add(btn_vid_high, btn_vid_low, btn_audio)
     return markup
@@ -57,19 +63,17 @@ def send_welcome(message):
 
 @bot.message_handler(func=lambda message: message.text and 'http' in message.text)
 def handle_link(message):
-    raw_text = message.text
     chat_id = message.chat.id
     
-    # ----------------------------------------------------
-    # التحديث الهندسي: استخراج الرابط النظيف وتجاهل الأقواس
-    # ----------------------------------------------------
-    urls = re.findall(r'(https?://[^\s]+)', raw_text)
-    if not urls:
-        bot.send_message(chat_id, "❌ لم أتمكن من العثور على رابط صالح في رسالتك.")
+    # استخراج الرابط النظيف بدقة متناهية متجاهلاً الأقواس
+    match = re.search(r'(https?://[^\s\)\]]+)', message.text)
+    if not match:
+        bot.send_message(chat_id, "❌ لم أتمكن من العثور على رابط صالح.")
         return
         
-    # أخذ أول رابط موجود وتنظيفه من أي أقواس زائدة التصقت به
-    clean_url = urls[0].strip("[]()") 
+    clean_url = match.group(1)
+    # حفظ الرابط في ذاكرة البوت المرتبطة برقم الشات الخاص بك
+    user_urls[chat_id] = clean_url
     
     msg = bot.send_message(chat_id, "⏳ Analyzing link... / جاري تحليل الرابط...")
     
@@ -82,18 +86,24 @@ def handle_link(message):
         bot.edit_message_text(
             f"✅ **Video:** `{title}`\n\nChoose format / اختر الصيغة:",
             chat_id=chat_id, message_id=msg.message_id,
-            reply_markup=generate_markup(clean_url),
+            reply_markup=generate_markup(),
             parse_mode="Markdown"
         )
     except Exception as e:
         error_msg = str(e).split('\n')[0][:70]
-        bot.edit_message_text(f"❌ خطأ من المصدر:\n`{error_msg}...`", chat_id, msg.message_id, parse_mode="Markdown")
+        bot.edit_message_text(f"❌ خطأ من المصدر:\n`{error_msg}...`", chat_id, msg.message_id)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     chat_id = call.message.chat.id
     msg_id = call.message.message_id
-    action, url = call.data.split('|', 1)
+    action = call.data
+    
+    # استدعاء الرابط من الذاكرة
+    url = user_urls.get(chat_id)
+    if not url:
+        bot.edit_message_text("❌ انتهت صلاحية الجلسة، أرسل الرابط من جديد.", chat_id, msg_id)
+        return
     
     bot.edit_message_text("⬇️ Downloading... Please wait / جاري التحميل... يرجى الانتظار", chat_id, msg_id)
     os.makedirs('downloads', exist_ok=True)
@@ -128,7 +138,7 @@ def callback_query(call):
         bot.delete_message(chat_id, msg_id)
     except Exception as e:
         error_msg = str(e).split('\n')[0][:70]
-        bot.edit_message_text(f"⚠️ خطأ أثناء التحميل:\n`{error_msg}...`", chat_id, msg_id, parse_mode="Markdown")
+        bot.edit_message_text(f"⚠️ خطأ أثناء التحميل:\n`{error_msg}...`", chat_id, msg_id)
     finally:
         if downloaded_file and os.path.exists(downloaded_file):
             os.remove(downloaded_file)
