@@ -9,7 +9,7 @@ from threading import Thread
 import time
 
 # ==========================================
-# التعديل الجذري: إجبار تيليجرام على عدم قطع الاتصال
+# إعدادات تيليجرام لمنع انقطاع الاتصال
 # ==========================================
 apihelper.READ_TIMEOUT = 300
 apihelper.SESSION_TIME_TO_LIVE = 300
@@ -39,11 +39,15 @@ def keep_alive():
 # ==========================================
 user_urls = {}
 
+# ==========================================
+# إعدادات يوتيوب + التخطي (Cookies)
+# ==========================================
 base_ydl_opts = {
     'quiet': True,
     'noplaylist': True,
     'geo_bypass': True,
-    'extractor_args': {'youtube': ['client=android,ios']}
+    'extractor_args': {'youtube': ['client=android,ios']},
+    'cookiefile': 'cookies.txt'  # <-- السطر السحري لتخطي حماية يوتيوب
 }
 
 # ==========================================
@@ -132,7 +136,7 @@ def callback_query(call):
         bot.edit_message_text("📤 Uploading to Telegram... / جاري الإرسال...", chat_id, msg_id)
         caption_text = "✨ Downloaded via / تم التحميل بواسطة:\n👨‍💻 Dev: Anas Sadeq"
         
-        # نظام المحاولات المتكررة (العنيد) لضمان الإرسال رغم ضعف السيرفر
+        # نظام المحاولات المتكررة (العنيد)
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -141,11 +145,11 @@ def callback_query(call):
                         bot.send_audio(chat_id, file, caption=caption_text, timeout=300)
                     else:
                         bot.send_video(chat_id, file, caption=caption_text, timeout=300)
-                break # إذا نجح الإرسال، يخرج من الحلقة فورا
+                break 
             except Exception as upload_error:
                 if attempt == max_retries - 1:
-                    raise upload_error # إذا فشل 3 مرات، يظهر الخطأ
-                time.sleep(3) # استراحة قصيرة قبل المحاولة التالية
+                    raise upload_error 
+                time.sleep(3)
                 
         bot.delete_message(chat_id, msg_id)
     except Exception as e:
