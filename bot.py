@@ -34,25 +34,19 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# ==========================================
-# ذاكرة البوت
-# ==========================================
 user_urls = {}
 
 # ==========================================
-# إعدادات يوتيوب الشاملة (البصمة + تخطي التحليل)
+# 1. إعدادات "التحليل" (حرة تماماً بدون شروط جودة)
 # ==========================================
 base_ydl_opts = {
     'quiet': True,
     'noplaylist': True,
     'geo_bypass': True,
-    'cookiefile': 'cookies.txt',
-    'format': 'best/b'  # التعديل الأخير لإجبار تخطي التحليل بدون أخطاء
+    'cookiefile': 'cookies.txt'
+    # تمت إزالة شرط الـ format من هنا لكي لا ينهار التحليل
 }
 
-# ==========================================
-# كود البوت الأساسي
-# ==========================================
 def generate_markup():
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
@@ -86,6 +80,7 @@ def handle_link(message):
     msg = bot.send_message(chat_id, "⏳ Analyzing link... / جاري تحليل الرابط...")
     
     try:
+        # هنا يتم التحليل بحرية تامة دون قيود الجودة
         ydl_opts = base_ydl_opts.copy()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(clean_url, download=False)
@@ -118,13 +113,15 @@ def callback_query(call):
     ydl_opts = base_ydl_opts.copy()
     ydl_opts['outtmpl'] = f'downloads/{chat_id}_%(id)s.%(ext)s'
 
-    # صيغ التحميل المرنة والآمنة التي لا تنهار
+    # ==========================================
+    # 2. إعدادات "التحميل" (هنا فقط نفرض شروط الجودة)
+    # ==========================================
     if action == 'audio':
         ydl_opts.update({'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192',}]})
     elif action == 'low':
-        ydl_opts.update({'format': 'best[height<=480]/b'})
+        ydl_opts.update({'format': 'worst[ext=mp4]/worst'}) # أضمن صيغة للسيرفرات الضعيفة
     elif action == 'high':
-        ydl_opts.update({'format': 'best/b'})
+        ydl_opts.update({'format': 'b/best'}) # يجلب أفضل ملف مدمج جاهز
 
     downloaded_file = None
     try:
@@ -159,8 +156,5 @@ def callback_query(call):
         if downloaded_file and os.path.exists(downloaded_file):
             os.remove(downloaded_file)
 
-# ==========================================
-# تشغيل الخوادم معاً
-# ==========================================
 keep_alive()
 bot.infinity_polling(timeout=60, long_polling_timeout=60)
