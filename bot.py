@@ -1,10 +1,18 @@
 import telebot
+from telebot import apihelper
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import yt_dlp
 import os
 import re
 from flask import Flask
 from threading import Thread
+import time
+
+# ==========================================
+# التعديل الجذري: إجبار تيليجرام على عدم قطع الاتصال
+# ==========================================
+apihelper.READ_TIMEOUT = 300
+apihelper.SESSION_TIME_TO_LIVE = 300
 
 # ضع التوكن الخاص بك هنا
 BOT_TOKEN = "8466380764:AAHH3k3U4vEepn9C20Rz1jwfCyFumv9jyzQ"
@@ -27,13 +35,10 @@ def keep_alive():
     t.start()
 
 # ==========================================
-# ذاكرة البوت لحفظ الروابط (لحل مشكلة 64 حرفاً)
+# ذاكرة البوت
 # ==========================================
 user_urls = {}
 
-# ==========================================
-# إعدادات مكتبة التحميل للتخطي والمرونة
-# ==========================================
 base_ydl_opts = {
     'quiet': True,
     'noplaylist': True,
@@ -66,8 +71,6 @@ def send_welcome(message):
 @bot.message_handler(func=lambda message: message.text and 'http' in message.text)
 def handle_link(message):
     chat_id = message.chat.id
-    
-    # تنظيف الرابط من أي أقواس أو نصوص زائدة
     match = re.search(r'(https?://[^\s\)\]]+)', message.text)
     if not match:
         bot.send_message(chat_id, "❌ لم أتمكن من العثور على رابط صالح.")
@@ -111,7 +114,6 @@ def callback_query(call):
     ydl_opts = base_ydl_opts.copy()
     ydl_opts['outtmpl'] = f'downloads/{chat_id}_%(id)s.%(ext)s'
 
-    # التعديل النهائي لمرونة الصيغ
     if action == 'audio':
         ydl_opts.update({'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192',}]})
     elif action == 'low':
@@ -130,12 +132,20 @@ def callback_query(call):
         bot.edit_message_text("📤 Uploading to Telegram... / جاري الإرسال...", chat_id, msg_id)
         caption_text = "✨ Downloaded via / تم التحميل بواسطة:\n👨‍💻 Dev: Anas Sadeq"
         
-        # إعطاء مهلة 120 ثانية لرفع الملفات
-        with open(downloaded_file, 'rb') as file:
-            if action == 'audio':
-                bot.send_audio(chat_id, file, caption=caption_text, timeout=120)
-            else:
-                bot.send_video(chat_id, file, caption=caption_text, timeout=120)
+        # نظام المحاولات المتكررة (العنيد) لضمان الإرسال رغم ضعف السيرفر
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with open(downloaded_file, 'rb') as file:
+                    if action == 'audio':
+                        bot.send_audio(chat_id, file, caption=caption_text, timeout=300)
+                    else:
+                        bot.send_video(chat_id, file, caption=caption_text, timeout=300)
+                break # إذا نجح الإرسال، يخرج من الحلقة فورا
+            except Exception as upload_error:
+                if attempt == max_retries - 1:
+                    raise upload_error # إذا فشل 3 مرات، يظهر الخطأ
+                time.sleep(3) # استراحة قصيرة قبل المحاولة التالية
                 
         bot.delete_message(chat_id, msg_id)
     except Exception as e:
